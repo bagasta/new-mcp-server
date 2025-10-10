@@ -1,0 +1,86 @@
+# MCP Calculator Server
+
+Full-featured MCP (Model Context Protocol) server with calculator tools, supporting multiple transports.
+
+## Features
+
+- ✅ 9 tools (calculator operations plus web fetching)
+- ✅ 4 transport options (STDIO, SSE, Streamable HTTP, REST API)
+- ✅ Interactive playground with optional LangChain integration
+- ✅ Built with FastMCP and Python
+
+## Quick Start
+
+### 1. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+cd playground/backend && pip install -r requirements.txt
+```
+
+### 2. Run MCP Server (choose one transport)
+
+```bash
+# STDIO
+python -m src.transports.stdio
+
+# SSE (port 8000)
+python -m src.transports.sse
+
+# Streamable HTTP (port 8001)
+python -m src.transports.streamable
+
+# REST API (port 8002)
+python -m src.transports.api
+```
+
+> **Note:** The playground backend requires the REST API transport. Start it with
+> `python -m src.transports.api` before launching the playground services.
+>
+> For LangChain-powered `/calculate` requests, also start the SSE transport:
+> `python -m src.transports.sse` (default URL `http://localhost:8000/sse`).
+
+### 3. Run Playground
+
+```bash
+# Start backend
+cd playground/backend
+python -m main
+
+# Open frontend (in browser)
+open ../frontend/index.html  # macOS
+# or use your preferred method to open the HTML file.
+```
+
+## Transport Details
+
+| Transport        | Port | Use Case                    |
+|------------------|------|-----------------------------|
+| STDIO            | -    | CLI tools, direct integration |
+| SSE              | 8000 | Real-time streaming         |
+| Streamable HTTP  | 8001 | HTTP streaming clients      |
+| REST API         | 8002 | Simple HTTP requests        |
+
+## Available Tools
+
+- `add(a, b)` - Add two numbers
+- `subtract(a, b)` - Subtract b from a
+- `multiply(a, b)` - Multiply two numbers
+- `divide(a, b)` - Divide a by b
+- `power(base, exponent)` - Raise `base` to `exponent`
+- `sqrt(value)` - Square root
+- `factorial(value)` - Factorial
+- `percentage(value, percent)` - Calculate a percentage
+- `fetch_web_content(url, timeout=10)` - Fetch web content over HTTP/HTTPS
+
+## Playground Usage
+
+1. Start REST API transport: `python -m src.transports.api`
+2. Start playground backend: `cd playground/backend && python -m main`
+3. Open `playground/frontend/index.html` in your browser
+4. Select tools, provide arguments, and execute operations
+5. Optionally enter natural-language instructions (enable LangChain to process fully)
+
+## License
+
+MIT

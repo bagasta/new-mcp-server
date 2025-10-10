@@ -1,0 +1,48 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Byte-compiled / optimized / DLL files
+*.so
+*.dll
+*.dylib
+
+# Virtual environments
+.venv/
+venv/
+myenv/
+path/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# Logs and coverage
+*.log
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+__pypackages__/
+
+# Environment variables / secrets
+.env
+.env.*
+
+# Editor settings
+.vscode/
+.idea/
+
+# Miscellaneous
+*.sqlite3
+*.db
+*.DS_Store
+Thumbs.db

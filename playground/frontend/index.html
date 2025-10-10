@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP Calculator Playground</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧮 MCP Calculator Playground</h1>
+            <p>Test your MCP Calculator Server with multiple transports</p>
+        </header>
+
+        <div class="main-content">
+            <section class="tools-section">
+                <h2>Available Tools</h2>
+                <div id="tools-list" class="tools-list">
+                    <p class="loading">Loading tools...</p>
+                </div>
+            </section>
+
+            <section class="test-section">
+                <h2>Test Calculator</h2>
+
+                <div class="test-form">
+                    <label for="tool-select">Select Tool:</label>
+                    <select id="tool-select">
+                        <option value="">-- Select a tool --</option>
+                    </select>
+
+                    <div id="arguments-container"></div>
+
+                    <button id="execute-btn" class="btn btn-primary">Execute</button>
+                </div>
+
+                <div class="result-container">
+                    <h3>Result:</h3>
+                    <pre id="result"></pre>
+                </div>
+            </section>
+
+            <section class="langchain-section">
+                <h2>LangChain Natural Language</h2>
+                <div class="langchain-form">
+                    <label for="expression">Enter calculation in natural language:</label>
+                    <input
+                        type="text"
+                        id="expression"
+                        placeholder="e.g., What is 25 plus 75?"
+                    >
+                    <button id="langchain-btn" class="btn btn-secondary">Calculate</button>
+                </div>
+                <div class="result-container">
+                    <h3>LangChain Result:</h3>
+                    <pre id="langchain-result"></pre>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
