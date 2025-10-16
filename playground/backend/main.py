@@ -33,7 +33,7 @@ app.add_middleware(
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-MCP_SSE_URL = os.getenv("MCP_SSE_URL", "http://localhost:8000/sse")
+MCP_SSE_URL = os.getenv("MCP_SSE_URL", "http://localhost:8190/sse")
 
 mcp_client = MCPClient()
 

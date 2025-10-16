@@ -2,13 +2,49 @@
 
 from __future__ import annotations
 
+import os
+from pathlib import Path
+from typing import Any
+
 from fastmcp import FastMCP
 
-from src.tools import Calculator, WebFetcher
+try:  # Lazy dependency: load .env if python-dotenv is available
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional dependency
+    load_dotenv = None  # type: ignore[assignment]
+
+
+def _load_env() -> None:
+    """Load environment variables from a .env file if available."""
+    if load_dotenv is not None:
+        load_dotenv()
+        return
+
+    env_path = Path(".env")
+    if not env_path.exists():
+        return
+
+    for raw_line in env_path.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("'\"")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+_load_env()
+
+from src.tools import Calculator, DOCXGenerator, PDFGenerator, WebFetcher, WebSearcher
 
 mcp = FastMCP("Calculator Server")
 _calculator = Calculator()
 _web_fetcher = WebFetcher()
+_web_searcher = WebSearcher(api_key=os.getenv("SERPER_API_KEY"))
+_pdf_generator = PDFGenerator()
+_docx_generator = DOCXGenerator()
 
 
 def _wrap_result(value: float | int) -> dict[str, float | int]:
@@ -150,3 +186,80 @@ async def fetch_web_content(url: str, timeout: float = 10.0) -> dict[str, str | 
         ValueError: If the URL scheme is unsupported or the request fails.
     """
     return await _web_fetcher.fetch(url, timeout)
+
+
+@mcp.tool()
+async def web_search(
+    query: str,
+    country: str = "us",
+    language: str = "en",
+    num_results: int = 5,
+    timeout: float = 10.0,
+) -> dict[str, Any]:
+    """Search the web using the Serper API.
+
+    Args:
+        query: Search query string.
+        country: Two-letter country code for search localisation.
+        language: Two-letter language code for search localisation.
+        num_results: Maximum number of results to return (1-10).
+        timeout: Timeout for the Serper API request in seconds.
+
+    Returns:
+        A dictionary containing structured search results.
+
+    Raises:
+        ValueError: If the query is empty or the Serper API request fails.
+    """
+    return await _web_searcher.search(
+        query,
+        country=country,
+        language=language,
+        num_results=num_results,
+        timeout=timeout,
+    )
+
+
+@mcp.tool()
+def pdf_generate(
+    title: str,
+    content: str,
+    filename: str | None = None,
+    author: str | None = None,
+) -> dict[str, Any]:
+    """Generate a PDF document from text content.
+
+    Args:
+        title: Title to embed in the PDF.
+        content: Text content to render.
+        filename: Optional filename for the generated PDF.
+        author: Optional author metadata for the PDF.
+
+    Returns:
+        A dictionary containing metadata and base64-encoded PDF content.
+
+    Raises:
+        ValueError: If required fields are missing.
+    """
+    return _pdf_generator.generate_pdf(
+        title=title,
+        content=content,
+        filename=filename,
+        author=author,
+    )
+
+
+@mcp.tool()
+def docx_generate(
+    title: str,
+    content: str,
+    filename: str | None = None,
+    author: str | None = None,
+) -> dict[str, Any]:
+    """Generate a DOCX document from text content."""
+    return _docx_generator.generate_docx(
+        title=title,
+        content=content,
+        filename=filename,
+        author=author,
+    )

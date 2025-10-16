@@ -4,7 +4,7 @@ Full-featured MCP (Model Context Protocol) server with calculator tools, support
 
 ## Features
 
-- ✅ 9 tools (calculator operations plus web fetching)
+- ✅ 12 tools (calculator operations plus web fetching, search, PDF, and DOCX generation)
 - ✅ 4 transport options (STDIO, SSE, Streamable HTTP, REST API)
 - ✅ Interactive playground with optional LangChain integration
 - ✅ Built with FastMCP and Python
@@ -72,6 +72,14 @@ open ../frontend/index.html  # macOS
 - `factorial(value)` - Factorial
 - `percentage(value, percent)` - Calculate a percentage
 - `fetch_web_content(url, timeout=10)` - Fetch web content over HTTP/HTTPS
+- `web_search(query, country='us', language='en', num_results=5)` - Search the web via Serper
+- `pdf_generate(title, content, filename=None, author=None)` - Generate a PDF document with supplied text
+- `docx_generate(title, content, filename=None, author=None)` - Generate a DOCX document with supplied text
+
+### Configuration Notes
+
+- Environment variables from a `.env` file in the project root are loaded automatically when the server starts.
+- Set `SERPER_API_KEY` with your Serper API token to enable the `web_search` tool.
 
 ## Playground Usage
 

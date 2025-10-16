@@ -26,6 +26,9 @@ Interactive UI for testing the MCP Calculator Server with optional LangChain int
 - Execute tools with custom parameters
 - Natural-language calculations via LangChain (requires OpenAI API key)
 - Fetch web content through the MCP server
+- Run Serper-powered web searches (requires `SERPER_API_KEY`)
+- Generate PDFs directly from tool responses
+- Generate DOCX files without templates
 - Real-time result display
 
 ## Configuration
@@ -37,6 +40,7 @@ The backend listens on port `8003` by default. To change the port:
 
 LangChain uses the MCP SSE endpoint. Configure the URL via the
 `MCP_SSE_URL` environment variable (defaults to `http://localhost:8000/sse`).
+Set `SERPER_API_KEY` to enable the `web_search` tool on the MCP server.
 
 ## LangChain Integration
 

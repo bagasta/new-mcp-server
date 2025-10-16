@@ -1,6 +1,6 @@
 # MCP Calculator Server Integration Guide
 
-This document explains how external LangChain-based projects can connect to the MCP Calculator Server provided in this repository. The server exposes calculator tools and a web fetching utility over multiple transports (STDIO, SSE, Streamable HTTP, REST API). Choose the transport that best matches your deployment scenario, then follow the corresponding integration steps.
+This document explains how external LangChain-based projects can connect to the MCP Calculator Server provided in this repository. The server exposes calculator tools along with web fetching/searching and PDF/DOCX generation utilities over multiple transports (STDIO, SSE, Streamable HTTP, REST API). Choose the transport that best matches your deployment scenario, then follow the corresponding integration steps.
 
 ## Available Tools
 
@@ -8,6 +8,9 @@ The server registers the following tools via MCP:
 
 - `add`, `subtract`, `multiply`, `divide`, `power`, `sqrt`, `factorial`, `percentage`
 - `fetch_web_content` — retrieve a text snippet from an HTTP/HTTPS URL
+- `web_search` — perform a Serper-backed web search (requires `SERPER_API_KEY`)
+- `pdf_generate` — generate a PDF document from user-provided text
+- `docx_generate` — generate a DOCX document from user-provided text
 
 All tools return structured responses compatible with LangChain’s tool schemas.
 
@@ -23,6 +26,7 @@ All tools return structured responses compatible with LangChain’s tool schemas
   cd playground/backend
   pip install -r requirements.txt
   ```
+- (Optional) Enable Serper search: `export SERPER_API_KEY=your_serper_key`
 
 ## Starting the MCP Server
 
