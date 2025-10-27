@@ -93,6 +93,11 @@ open ../frontend/index.html  # macOS
 4. Select tools, provide arguments, and execute operations
 5. Optionally enter natural-language instructions (enable LangChain to process fully)
 
+## Integration Tests
+
+- Run `python3 scripts/run_full_test.py` from the project root to exercise calculator tools, document generators, web utilities, reminder workflows, and REST/SSE/streamable transports.
+- The harness spins up a local webhook recorder and skips the Serper search test unless `SERPER_API_KEY` is configured.
+
 ## License
 
 MIT
