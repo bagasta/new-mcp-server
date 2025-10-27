@@ -1,8 +1,9 @@
-"""FastMCP server exposing calculator tools."""
+"""FastMCP server exposing calculator and reminder tools."""
 
 from __future__ import annotations
 
 import os
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -37,7 +38,43 @@ def _load_env() -> None:
 
 _load_env()
 
+from src.reminders import (
+    ReminderDispatcher,
+    ReminderRepository,
+    ReminderService,
+    MessageSender,
+    DeepResearchSender,
+)
 from src.tools import Calculator, DOCXGenerator, PDFGenerator, WebFetcher, WebSearcher
+
+LOGGER = logging.getLogger("mcp.server")
+
+
+def _env_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except ValueError:  # pragma: no cover - configuration guard
+        LOGGER.warning("Invalid %s value '%s'. Using default %s.", name, value, default)
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:  # pragma: no cover - configuration guard
+        LOGGER.warning("Invalid %s value '%s'. Using default %s.", name, value, default)
+        return default
+
+
+def _env_path(name: str, default: str) -> Path:
+    value = os.getenv(name)
+    return Path(value) if value else Path(default)
 
 mcp = FastMCP("Calculator Server")
 _calculator = Calculator()
@@ -45,6 +82,40 @@ _web_fetcher = WebFetcher()
 _web_searcher = WebSearcher(api_key=os.getenv("SERPER_API_KEY"))
 _pdf_generator = PDFGenerator()
 _docx_generator = DOCXGenerator()
+DATABASE_URL = os.getenv("DATABASE_URL")
+if DATABASE_URL:
+    _reminder_repository = ReminderRepository(database_url=DATABASE_URL)
+else:
+    _reminder_repository = ReminderRepository(
+        sqlite_path=_env_path("REMINDER_DB_PATH", "data/reminders.db")
+    )
+_reminder_dispatcher = ReminderDispatcher(
+    _reminder_repository,
+    poll_interval=_env_float("REMINDER_POLL_INTERVAL_SECONDS", 30.0),
+    batch_size=_env_int("REMINDER_DISPATCH_BATCH_SIZE", 10),
+    http_timeout=_env_float("REMINDER_HTTP_TIMEOUT_SECONDS", 10.0),
+    retry_base_seconds=_env_float("REMINDER_RETRY_BASE_SECONDS", 30.0),
+    retry_max_seconds=_env_float("REMINDER_RETRY_MAX_SECONDS", 600.0),
+)
+_reminder_service = ReminderService(
+    repository=_reminder_repository,
+    dispatcher=_reminder_dispatcher,
+    webhook_url=os.getenv(
+        "REMINDER_WEBHOOK_URL", "https://example.com/webhooks/reminders"
+    ),
+    min_lead_seconds=_env_float("REMINDER_MIN_LEAD_SECONDS", 5.0),
+)
+_message_sender = MessageSender(
+    webhook_url=os.getenv("MESSAGE_WEBHOOK_URL")
+    or os.getenv("REMINDER_WEBHOOK_URL", "https://example.com/webhooks/messages"),
+    http_timeout=_env_float("MESSAGE_HTTP_TIMEOUT_SECONDS", 10.0),
+)
+_deep_research_sender = DeepResearchSender(
+    webhook_url=os.getenv("DEEP_RESEARCH_WEBHOOK_URL")
+    or os.getenv("MESSAGE_WEBHOOK_URL")
+    or os.getenv("REMINDER_WEBHOOK_URL", "https://example.com/webhooks/deep-research"),
+    http_timeout=_env_float("DEEP_RESEARCH_HTTP_TIMEOUT_SECONDS", 10.0),
+)
 
 
 def _wrap_result(value: float | int) -> dict[str, float | int]:
@@ -186,6 +257,80 @@ async def fetch_web_content(url: str, timeout: float = 10.0) -> dict[str, str | 
         ValueError: If the URL scheme is unsupported or the request fails.
     """
     return await _web_fetcher.fetch(url, timeout)
+
+
+@mcp.tool()
+async def schedule_reminder(
+    title: str,
+    message: str,
+    target_time_iso: str,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Schedule a reminder to be dispatched to the configured webhook.
+
+    Args:
+        title: Human readable title for the reminder.
+        message: Contextual description of the reminder.
+        target_time_iso: ISO-8601 timestamp (with timezone) when the reminder should fire.
+        payload: Channel-specific payload forwarded to the webhook (e.g., WhatsApp data).
+
+    Returns:
+        Structured information about the scheduled reminder, including its identifier.
+    """
+    return await _reminder_service.schedule_reminder(
+        title=title,
+        message=message,
+        target_time_iso=target_time_iso,
+        payload=payload,
+    )
+
+
+@mcp.tool()
+async def list_reminders(status: str | None = None, limit: int = 20) -> dict[str, Any]:
+    """List reminders currently tracked by the MCP server."""
+    reminders = _reminder_service.list_reminders(status=status, limit=limit)
+    return {
+        "note": "Reminder listing generated.",
+        "status": status or "any",
+        "count": len(reminders),
+        "reminders": reminders,
+    }
+
+
+@mcp.tool()
+async def cancel_reminder(reminder_id: str) -> dict[str, Any]:
+    """Cancel a pending reminder using its identifier."""
+    result = _reminder_service.cancel_reminder(reminder_id)
+    result["note"] = "Reminder cancelled successfully."
+    return result
+
+
+@mcp.tool()
+async def send_message(to: str, message: str) -> dict[str, Any]:
+    """Send an immediate notification to the configured webhook.
+
+    Args:
+        to: Recipient identifier understood by downstream automation.
+        message: Text body to forward to the downstream channel.
+
+    Returns:
+        Structured confirmation describing the delivered message.
+    """
+    return await _message_sender.send(to=to, message=message)
+
+
+@mcp.tool()
+async def deep_research(search_topic: str, email: str) -> dict[str, Any]:
+    """Trigger an n8n deep-research workflow with the provided inputs.
+
+    Args:
+        search_topic: Topic that should be investigated by the downstream workflow.
+        email: Recipient email address for the deep research results.
+
+    Returns:
+        Structured confirmation describing the triggered workflow request.
+    """
+    return await _deep_research_sender.trigger(search_topic=search_topic, email=email)
 
 
 @mcp.tool()

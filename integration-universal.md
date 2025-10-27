@@ -6,11 +6,12 @@ This document explains how external LangChain-based projects can connect to the 
 
 The server registers the following tools via MCP:
 
-- `add`, `subtract`, `multiply`, `divide`, `power`, `sqrt`, `factorial`, `percentage`
-- `fetch_web_content` — retrieve a text snippet from an HTTP/HTTPS URL
-- `web_search` — perform a Serper-backed web search (requires `SERPER_API_KEY`)
-- `pdf_generate` — generate a PDF document from user-provided text
-- `docx_generate` — generate a DOCX document from user-provided text
+- Core math utilities: `add`, `subtract`, `multiply`, `divide`, `power`, `sqrt`, `factorial`, `percentage`
+- Web utilities: `fetch_web_content` (HTTP/HTTPS fetcher) and `web_search` (Serper-backed search; requires `SERPER_API_KEY`)
+- Document generators: `pdf_generate` (PDF) and `docx_generate` (DOCX)
+- Reminder management: `schedule_reminder`, `list_reminders`, `cancel_reminder`
+- Immediate messaging: `send_message` — push ad-hoc notifications to the configured webhook
+- Deep research trigger: `deep_research` — send a structured payload to the n8n deep research workflow (`DEEP_RESEARCH_WEBHOOK_URL`)
 
 All tools return structured responses compatible with LangChain’s tool schemas.
 
@@ -154,7 +155,98 @@ async with stdio_client(server_params) as (read_stream, write_stream):
   - `MCP_API_BASE_URL` to point the REST client elsewhere.
   - `MCP_SSE_URL` for the SSE-based integrations.
   - `OPENAI_API_KEY` when using OpenAI-powered LangChain agents.
+  - `DATABASE_URL` (PostgreSQL DSN) to persist reminders in Postgres instead of the default SQLite file.
+  - `REMINDER_WEBHOOK_URL` to define the downstream webhook (e.g., your n8n flow).
+  - `MESSAGE_WEBHOOK_URL` to customise the immediate messaging endpoint.
+  - `DEEP_RESEARCH_WEBHOOK_URL` to wire the deep research workflow webhook.
+  - (Optional) `REMINDER_DB_PATH`, `REMINDER_POLL_INTERVAL_SECONDS`, `REMINDER_DISPATCH_BATCH_SIZE`, `REMINDER_MIN_LEAD_SECONDS`, and retry-related settings to tune the reminder dispatcher.
 - The playground backend (FastAPI) uses SSE + `langchain-mcp`. Run both REST (`python -m src.transports.api`) and SSE transports when testing the full stack.
+
+## Reminder Webhook Dispatch
+
+The MCP server can now persist reminders and send them to an external automation platform (such as n8n) at the scheduled time.
+
+1. Set `REMINDER_WEBHOOK_URL` (and optional tuning variables listed above) in your `.env`.
+2. From LangChain, invoke the `schedule_reminder` tool with payloads shaped like:
+   ```json
+   {
+     "title": "Meeting with Nina",
+     "message": "Reminder: standup with Nina in 10m",
+     "target_time_iso": "2024-07-10T05:00:00Z",
+     "payload": {
+       "to": "whatsapp:+62812…",
+       "message": "Title: Meeting with Nina\nReminder: standup with Nina in 10m"
+     }
+   }
+   ```
+3. The MCP server stores the reminder, watches for due times, and POSTs the same structure to the configured webhook. Use `list_reminders` or `cancel_reminder` to inspect or manage pending reminders.
+4. When `DATABASE_URL` is set, the server auto-creates/uses a `reminders` table in PostgreSQL (`JSONB` payload, indexed on `(status, earliest_run)`).
+5. Always provide `target_time_iso` with an explicit timezone offset (for Jakarta/WIB: append `+07:00`). Example: `2025-10-17T11:25:00+07:00` will be stored as `2025-10-17T04:25:00Z` internally but still fires at 11:25 Jakarta time.
+
+## Deep Research Workflow Trigger
+
+The `deep_research` tool forwards a structured array payload to the configured `DEEP_RESEARCH_WEBHOOK_URL`, which in turn can launch an n8n workflow.
+
+1. Set `DEEP_RESEARCH_WEBHOOK_URL` (and optionally `DEEP_RESEARCH_HTTP_TIMEOUT_SECONDS`) in your `.env` file.
+2. Invoke the tool with the desired topic and recipient email, for example:
+   ```json
+   {
+     "tool_name": "deep_research",
+     "arguments": {
+       "search_topic": "AI in sustainable farming",
+       "email": "analysis@example.com"
+     }
+   }
+   ```
+3. The server issues a POST containing:
+   ```json
+   [
+     {
+       "Search Topic": "AI in sustainable farming",
+       "Email": "analysis@example.com"
+     }
+   ]
+   ```
+   along with an `X-Deep-Research-Id` header so downstream automation can correlate runs.
+4. The tool response echoes the payload and status code returned by n8n for observability.
+
+### Testing via SSE
+
+1. Start the SSE transport: `python -m src.transports.sse` (default `http://localhost:8190/sse`).
+2. Use the following snippet to schedule a reminder over SSE while converting local Jakarta time to ISO automatically:
+   ```python
+   import asyncio
+   from datetime import datetime, timedelta
+   from zoneinfo import ZoneInfo
+   from mcp.client.sse import sse_client
+   from mcp import ClientSession
+
+   async def main() -> None:
+       jakarta = ZoneInfo("Asia/Jakarta")
+       now = datetime.now(jakarta)
+       target = now.replace(hour=11, minute=25, second=0, microsecond=0)
+       if target <= now:
+           target += timedelta(days=1)
+       async with sse_client("http://localhost:8190/sse") as (read_stream, write_stream):
+           async with ClientSession(read_stream, write_stream) as session:
+               await session.initialize()
+               response = await session.call_tool(
+                   name="schedule_reminder",
+                   arguments={
+                       "title": "Daily stand-up",
+                       "message": "Reminder: stand-up starts in 5 minutes.",
+                       "target_time_iso": target.isoformat(),
+                       "payload": {
+                           "to": "whatsapp:+628123456789",
+                           "message": "Title: Daily stand-up\nReminder: stand-up starts in 5 minutes.",
+                       },
+                   },
+               )
+               print(response.model_dump_json(indent=2))
+
+   asyncio.run(main())
+   ```
+3. Check `list_reminders` (via SSE or REST) to verify `status`, `target_time_iso`, and `last_error`.
 
 ## Troubleshooting
 

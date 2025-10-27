@@ -4,7 +4,7 @@ Full-featured MCP (Model Context Protocol) server with calculator tools, support
 
 ## Features
 
-- ✅ 12 tools (calculator operations plus web fetching, search, PDF, and DOCX generation)
+- ✅ 17 tools (calculator operations, web utilities, reminders, messaging, documents, and deep research trigger)
 - ✅ 4 transport options (STDIO, SSE, Streamable HTTP, REST API)
 - ✅ Interactive playground with optional LangChain integration
 - ✅ Built with FastMCP and Python
@@ -75,11 +75,15 @@ open ../frontend/index.html  # macOS
 - `web_search(query, country='us', language='en', num_results=5)` - Search the web via Serper
 - `pdf_generate(title, content, filename=None, author=None)` - Generate a PDF document with supplied text
 - `docx_generate(title, content, filename=None, author=None)` - Generate a DOCX document with supplied text
+- `schedule_reminder(...)`, `list_reminders(limit=20)`, `cancel_reminder(reminder_id)` - Manage scheduled reminders via webhook
+- `send_message(to, message)` - Dispatch an immediate notification to the webhook
+- `deep_research(search_topic, email)` - Trigger the n8n deep research workflow with structured payload
 
 ### Configuration Notes
 
 - Environment variables from a `.env` file in the project root are loaded automatically when the server starts.
 - Set `SERPER_API_KEY` with your Serper API token to enable the `web_search` tool.
+- Set `REMINDER_WEBHOOK_URL`, `MESSAGE_WEBHOOK_URL`, and `DEEP_RESEARCH_WEBHOOK_URL` to wire webhook-based tools.
 
 ## Playground Usage
 
