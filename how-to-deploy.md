@@ -16,28 +16,31 @@ This guide walks through deploying the MCP Calculator Server on a Linux host, fo
 
 ## 1. Prepare the Server
 ```bash
-sudo adduser --system --group --home /opt/mcp mcp
-sudo mkdir -p /opt/mcp && sudo chown -R mcp:mcp /opt/mcp
-sudo -u mcp git clone https://github.com/YOUR_ORG/mcp-calculator.git /opt/mcp
+git clone https://github.com/bagasta/new-mcp-server.git ~/new-mcp-server
+cd ~/new-mcp-server
 ```
 
-If you already have the repository on the machine, copy it into `/opt/mcp` (or any directory owned by the service user) and adjust the rest of the paths accordingly.
+If you already have the repository on the machine, move it into a folder named `new-mcp-server` and treat that directory as the project root for the rest of this guide.
 
 ## 2. Create the Virtual Environment
+Run the following from the project root (`~/new-mcp-server`):
+
 ```bash
-sudo -u mcp python3 -m venv /opt/mcp/.venv
-sudo -u mcp /opt/mcp/.venv/bin/pip install --upgrade pip
-sudo -u mcp /opt/mcp/.venv/bin/pip install -r /opt/mcp/requirements.txt
-sudo -u mcp /opt/mcp/.venv/bin/pip install -r /opt/mcp/playground/backend/requirements.txt  # Only if you plan to run the playground backend
+python3 -m venv .venv
+. .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+pip install -r playground/backend/requirements.txt   # Only if you plan to run the playground backend
+deactivate
 ```
 
 These requirements install `fastmcp`, `fastapi`, `uvicorn`, `httpx`, PDF/DOCX generators, and optional PostgreSQL (`psycopg[binary]`) support used by the reminder service.
 
 ## 3. Configure Environment Variables
-All transports load environment variables from `/opt/mcp/.env`. Populate it with the values required for the tools you intend to expose:
+All transports load environment variables from `~/new-mcp-server/.env`. Populate it with the values required for the tools you intend to expose:
 
 ```bash
-sudo -u mcp tee /opt/mcp/.env >/dev/null <<'EOF'
+cat <<'EOF' > ~/new-mcp-server/.env
 # Core MCP server
 SERPER_API_KEY=""                # Required for the web_search tool
 REMINDER_WEBHOOK_URL=""          # Required to receive scheduled reminders
@@ -66,23 +69,21 @@ EOF
 Notes:
 - The server reads `.env` automatically using `python-dotenv`. If that package is missing, it falls back to a built-in parser.
 - Leave comment lines or remove unused keys entirely; empty strings will cause runtime validation errors for webhook URLs.
-- If you do not provide `DATABASE_URL`, the server creates `data/reminders.db` (SQLite) relative to `/opt/mcp`.
+- If you do not provide `DATABASE_URL`, the server creates `data/reminders.db` (SQLite) relative to `~/new-mcp-server`.
 
 ## 4. Storage Backends
-- **SQLite (default):** no extra work. Ensure `/opt/mcp/data` is writable by the service user. The file is created on first reminder.
-  ```bash
-  sudo -u mcp mkdir -p /opt/mcp/data
-  ```
+- **SQLite (default):** no extra work. Ensure `~/new-mcp-server/data` exists and is writable. The file is created on first reminder.
+```bash
+mkdir -p ~/new-mcp-server/data
+```
 - **PostgreSQL:** set `DATABASE_URL`. `psycopg[binary]` ships with the project; ensure the database exists and the user has permission to create tables.
 
 ## 5. Manual SSE Transport Test
 Before wiring systemd, verify the server starts and responds:
 ```bash
-sudo -u mcp bash -lc '
-  cd /opt/mcp
-  source .venv/bin/activate
-  uvicorn src.transports.sse:app --host 0.0.0.0 --port 8190
-'
+cd ~/new-mcp-server
+. .venv/bin/activate
+uvicorn src.transports.sse:app --host 0.0.0.0 --port 8190
 ```
 
 Open another terminal (or use `curl`) to confirm the endpoint streams events:
@@ -101,18 +102,20 @@ After=network.target
 
 [Service]
 Type=simple
-User=mcp
-Group=mcp
-WorkingDirectory=/opt/mcp
-EnvironmentFile=/opt/mcp/.env
-Environment=PYTHONPATH=/opt/mcp
-ExecStart=/opt/mcp/.venv/bin/python -m src.transports.sse
+User=bagas  # Ganti dengan user yang menjalankan proyek ini
+Group=bagas
+WorkingDirectory=/home/bagas/new-mcp-server   # Ganti dengan path absolut proyek
+EnvironmentFile=/home/bagas/new-mcp-server/.env
+Environment=PYTHONPATH=/home/bagas/new-mcp-server
+ExecStart=/home/bagas/new-mcp-server/.venv/bin/python -m src.transports.sse
 Restart=on-failure
 RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
 ```
+
+Ganti `bagas` dan `/home/bagas/new-mcp-server` dengan nama user dan path absolut proyek milikmu.
 
 Reload and start the service:
 ```bash
@@ -129,27 +132,26 @@ sudo systemctl status mcp-sse
 - Schedule a reminder via the REST API or LangChain agent and confirm the webhook receives payloads.
 
 ## 8. Optional Components
-- **REST transport:** add another unit that runs `/opt/mcp/.venv/bin/python -m src.transports.api` (port 8002). The playground backend and CLI use this endpoint.
-- **Playground backend:** `/opt/mcp/.venv/bin/python -m playground.backend.main` (port 8003). Requires `MCP_API_BASE_URL`, `MCP_SSE_URL`, and `OPENAI_API_KEY`.
+- **REST transport:** add another unit that runs `~/new-mcp-server/.venv/bin/python -m src.transports.api` (port 8002). The playground backend and CLI use this endpoint.
+- **Playground backend:** `~/new-mcp-server/.venv/bin/python -m playground.backend.main` (port 8003). Requires `MCP_API_BASE_URL`, `MCP_SSE_URL`, and `OPENAI_API_KEY`.
 - **Frontend:** the static files in `playground/frontend/` can be served by any web server (`python -m http.server 8080`, nginx, etc.).
 - **Integration test harness:** `python scripts/run_full_test.py` spins up a local webhook catcher and exercises all transports/endpoints. Run it from the project root with the same virtualenv to validate deployments.
 
 ## 9. Routine Maintenance
 - Pull updates and reinstall dependencies:
-  ```bash
-  sudo -u mcp bash -lc '
-    cd /opt/mcp
-    git fetch --all
-    git checkout main
-    git pull
-    source .venv/bin/activate
-    pip install -r requirements.txt
-    pip install -r playground/backend/requirements.txt
-  '
-  sudo systemctl restart mcp-sse
-  ```
+```bash
+cd ~/new-mcp-server
+git fetch --all
+git checkout main
+git pull
+. .venv/bin/activate
+pip install -r requirements.txt
+pip install -r playground/backend/requirements.txt
+deactivate
+sudo systemctl restart mcp-sse
+```
 - Monitor webhook failures in logs; the reminder dispatcher retries with exponential backoff using the `REMINDER_RETRY_*` settings.
-- Back up the SQLite file (`/opt/mcp/data/reminders.db`) or rely on PostgreSQL backups if using that backend.
+- Back up the SQLite file (`~/new-mcp-server/data/reminders.db`) or rely on PostgreSQL backups if using that backend.
 
 ## 10. Troubleshooting
 - **Port already in use:** adjust the systemd unit to use a different port, then update clients (`MCP_SSE_URL`).
