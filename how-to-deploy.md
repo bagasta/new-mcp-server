@@ -97,17 +97,17 @@ Create `/etc/systemd/system/mcp-sse.service`:
 
 ```ini
 [Unit]
-Description=MCP Calculator SSE Transport
+Description=MCP SSE Transport
 After=network.target
 
 [Service]
 Type=simple
 User=bagas  # Ganti dengan user yang menjalankan proyek ini
 Group=bagas
-WorkingDirectory=/home/bagas/new-mcp-server   # Ganti dengan path absolut proyek
-EnvironmentFile=/home/bagas/new-mcp-server/.env
-Environment=PYTHONPATH=/home/bagas/new-mcp-server
-ExecStart=/home/bagas/new-mcp-server/.venv/bin/python -m src.transports.sse
+WorkingDirectory=/root/new-mcp-server   # Ganti dengan path absolut proyek
+EnvironmentFile=/root/new-mcp-server/.env
+Environment=PYTHONPATH=/root/new-mcp-server
+ExecStart=/root/new-mcp-server/.venv/bin/python -m src.transports.sse
 Restart=on-failure
 RestartSec=5
 
@@ -161,3 +161,7 @@ sudo systemctl restart mcp-sse
 - **LangChain SSE connectivity:** ensure `curl http://localhost:8190/sse` works from the playground backend host and that firewalls allow inbound traffic.
 
 With these steps, the SSE transport runs as a managed service, reminders are persisted, and the deployment is ready for LangChain agents or other MCP-compatible clients.
+
+
+Check realtime log:
+sudo journalctl -u mcp-sse -f
