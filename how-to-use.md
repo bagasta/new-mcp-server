@@ -25,6 +25,8 @@ curl -X POST "http://localhost:8002/execute" \
   }'
 ```
 
+> **SSE-only setup:** When you run just the SSE transport (`python -m src.transports.sse`), it now exposes the same `/tools` and `/execute` endpoints on port `8190`. Replace `http://localhost:8002` with `http://localhost:8190` in the examples below to invoke tools without starting the REST transport separately.
+
 The sections below provide concrete payloads for every tool.
 
 ---

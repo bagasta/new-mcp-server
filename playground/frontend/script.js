@@ -60,26 +60,49 @@ function handleToolSelect(event) {
     const container = document.getElementById('arguments-container');
     container.innerHTML = '';
 
-    if (tool && tool.parameters) {
-        const parameters = tool.parameters.properties || {};
-        Object.entries(parameters).forEach(([name, param]) => {
-            const div = document.createElement('div');
-            div.className = 'argument-input';
-            const inputType = param.type === 'integer' ? 'number' : 'text';
-            const stepAttr = param.type === 'integer' ? ' step="1"' : '';
+    if (!tool || !tool.parameters) {
+        return;
+    }
 
-            div.innerHTML = `
-                <label for="arg-${name}">${name} (${param.type || 'value'}):</label>
+    const parameters = tool.parameters.properties || {};
+    Object.entries(parameters).forEach(([name, param]) => {
+        const div = document.createElement('div');
+        div.className = 'argument-input';
+        const typeLabel = param.type || 'value';
+        const description = param.description || '';
+        let inputHtml = '';
+
+        if (param.type === 'object') {
+            inputHtml = `
+                <textarea
+                    id="arg-${name}"
+                    placeholder='Enter JSON, e.g. {"to": "whatsapp:+62812XXXXXXX", "message": "text"}'
+                    rows="4"
+                    spellcheck="false"
+                ></textarea>
+            `;
+        } else {
+            const inputType =
+                param.type === 'integer' || param.type === 'number'
+                    ? 'number'
+                    : 'text';
+            const stepAttr = param.type === 'integer' ? ' step="1"' : '';
+            inputHtml = `
                 <input
                     type="${inputType}"
                     id="arg-${name}"
-                    placeholder="${param.description || ''}"
+                    placeholder="${description}"
                     ${stepAttr}
                 >
             `;
-            container.appendChild(div);
-        });
-    }
+        }
+
+        div.innerHTML = `
+            <label for="arg-${name}">${name} (${typeLabel}):</label>
+            ${inputHtml}
+        `;
+        container.appendChild(div);
+    });
 }
 
 async function executeTool() {
@@ -93,20 +116,28 @@ async function executeTool() {
     const params = tool?.parameters?.properties || {};
     const argumentsPayload = {};
 
-    Object.entries(params).forEach(([name, param]) => {
+    let parseError = null;
+    for (const [name, param] of Object.entries(params)) {
         const input = document.getElementById(`arg-${name}`);
-        const rawValue = input?.value ?? '';
-        if (rawValue === '') {
-            return;
+        if (!input) {
+            continue;
         }
-        if (param.type === 'integer') {
-            argumentsPayload[name] = parseInt(rawValue, 10);
-        } else if (param.type === 'number') {
-            argumentsPayload[name] = parseFloat(rawValue);
-        } else {
-            argumentsPayload[name] = rawValue;
+        const rawValue = input.value ?? '';
+        if (rawValue.trim() === '') {
+            continue;
         }
-    });
+        try {
+            argumentsPayload[name] = transformArgumentValue(name, param, rawValue);
+        } catch (error) {
+            parseError = error instanceof Error ? error.message : String(error);
+            break;
+        }
+    }
+
+    if (parseError) {
+        document.getElementById('result').textContent = `Error: ${parseError}`;
+        return;
+    }
 
     try {
         const response = await fetch(`${API_URL}/execute`, {
@@ -154,4 +185,30 @@ async function calculateWithLangChain() {
         document.getElementById('langchain-result').textContent =
             `Error: ${error.message}`;
     }
+}
+
+function transformArgumentValue(name, param, rawValue) {
+    if (param.type === 'integer') {
+        const value = parseInt(rawValue, 10);
+        if (Number.isNaN(value)) {
+            throw new Error(`Invalid integer value for ${name}.`);
+        }
+        return value;
+    }
+    if (param.type === 'number') {
+        const value = parseFloat(rawValue);
+        if (Number.isNaN(value)) {
+            throw new Error(`Invalid number value for ${name}.`);
+        }
+        return value;
+    }
+    if (param.type === 'object') {
+        try {
+            return JSON.parse(rawValue);
+        } catch (error) {
+            const details = error instanceof Error ? error.message : String(error);
+            throw new Error(`Invalid JSON for ${name}: ${details}`);
+        }
+    }
+    return rawValue;
 }

@@ -17,11 +17,16 @@ except ImportError:  # pragma: no cover - optional dependency
 
 def _load_env() -> None:
     """Load environment variables from a .env file if available."""
+    # Resolve .env path relative to this file (src/server.py -> .env in root)
+    env_path = Path(__file__).resolve().parent.parent / ".env"
+
     if load_dotenv is not None:
-        load_dotenv()
+        if env_path.exists():
+            load_dotenv(dotenv_path=env_path)
+        else:
+            load_dotenv()
         return
 
-    env_path = Path(".env")
     if not env_path.exists():
         return
 
